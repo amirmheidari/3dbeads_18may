@@ -5,6 +5,9 @@ Trainer for the bead-tracking U-Net.
 Run:
     python train.py              # real data  (uses config.yaml if present)
     python train.py --smoke      # 1-frame synthetic sanity check
+
+Training is controlled via a fixed iteration count.
+Default is 10k iterations. Checkpoints are saved every 50 iterations.
 """
 
 import argparse, time, yaml
@@ -13,6 +16,7 @@ import numpy as np, torch, cv2
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
+from itertools import cycle
 
 from models.unet      import UNet
 from scripts.dataset  import XRayBeadDataset
@@ -55,7 +59,7 @@ def train(cfg, smoke=False):
             "raw/dummy_cam1.jpg,raw/dummy_cam2.jpg,"
             "labels/dummy_cam1.txt,labels/dummy_cam2.txt\n"
         )
-        cfg["epochs"] = 1
+        cfg["iters"] = 1
         ds = XRayBeadDataset("data/train_list.txt",
                              "data/raw/cam1_dummy.yaml",
                              "data/raw/cam2_dummy.yaml",
@@ -73,58 +77,82 @@ def train(cfg, smoke=False):
     opt = optim.Adam(net.parameters(), lr=cfg["lr"])
     mse = nn.MSELoss();  lam = cfg["lambda"]
 
-    # ---------------- epoch loop ----------------------------------------
-    for ep in range(int(cfg["epochs"])):
-        t0 = time.time()
-        for idx, smp in enumerate(dl):
-            img1 = smp["image1"].to(dev)
-            img2 = smp["image2"].to(dev)
+    # ---------------- iteration loop -----------------------------------
+    total_iters = int(cfg.get("iters", len(dl)))
+    dli = cycle(dl)
+    t0 = time.time()
+    for it in range(total_iters):
+        smp = next(dli)
 
-            kp1_list = smp["kp1"]
-            kp2_list = smp["kp2"]
+        img1 = smp["image1"].to(dev)
+        img2 = smp["image2"].to(dev)
+        print(f"[iter {it+1}] loaded images: img1 {tuple(img1.shape)}, img2 {tuple(img2.shape)}")
 
-            if (not kp1_list or not kp2_list or
-                len(kp1_list[0]) == 0 or len(kp2_list[0]) == 0):
-                continue
+        kp1_list = smp["kp1"]
+        kp2_list = smp["kp2"]
+        print(
+            f"[iter {it+1}] kp counts: cam1={len(kp1_list[0]) if kp1_list else 0} cam2={len(kp2_list[0]) if kp2_list else 0}"
+        )
 
-            kp1 = kp1_list[0];   kp2 = kp2_list[0]
-            P1  = smp["P1"][0];  P2 = smp["P2"][0]
+        if (
+            not kp1_list
+            or not kp2_list
+            or len(kp1_list[0]) == 0
+            or len(kp2_list[0]) == 0
+        ):
+            continue
 
-            H, W = img1.shape[-2:]
-            gt1 = generate_heatmap(kp1, H, W).to(dev)
-            gt2 = generate_heatmap(kp2, H, W).to(dev)
-            pred1 = net(img1);  pred2 = net(img2)
-            loss_h = mse(pred1, gt1) + mse(pred2, gt2)
+        kp1 = kp1_list[0]
+        kp2 = kp2_list[0]
+        P1 = smp["P1"][0]
+        P2 = smp["P2"][0]
 
-            x1, y1 = peak_xy(pred1[0,0]);  x2, y2 = peak_xy(pred2[0,0])
-            X,Y,Z  = triangulate(x1,y1,P1, x2,y2,P2)
-            rx1,ry1 = reproject((X,Y,Z), P1);  rx2,ry2 = reproject((X,Y,Z), P2)
-            reproj  = (rx1-x1)**2 + (ry1-y1)**2 + (rx2-x2)**2 + (ry2-y2)**2
-            reproj  = 0.0 if not np.isfinite(reproj) else reproj
-            loss_r  = torch.as_tensor(reproj, device=dev, dtype=pred1.dtype)
-            loss    = loss_h + lam*loss_r
+        H, W = img1.shape[-2:]
+        gt1 = generate_heatmap(kp1, H, W).to(dev)
+        gt2 = generate_heatmap(kp2, H, W).to(dev)
+        print(f"[iter {it+1}] gt1 max={gt1.max().item():.3f} gt2 max={gt2.max().item():.3f}")
+        pred1 = net(img1);  pred2 = net(img2)
+        print(
+            f"[iter {it+1}] pred1 min={pred1.min().item():.3f} max={pred1.max().item():.3f}"
+        )
+        loss_h = mse(pred1, gt1) + mse(pred2, gt2)
 
-            opt.zero_grad(); loss.backward(); opt.step()
+        x1, y1 = peak_xy(pred1[0,0])
+        x2, y2 = peak_xy(pred2[0,0])
+        X, Y, Z = triangulate(x1, y1, P1, x2, y2, P2)
+        print(f"[iter {it+1}] triangulated point: ({X:.2f}, {Y:.2f}, {Z:.2f})")
+        rx1, ry1 = reproject((X, Y, Z), P1)
+        rx2, ry2 = reproject((X, Y, Z), P2)
+        reproj = (rx1 - x1) ** 2 + (ry1 - y1) ** 2 + (rx2 - x2) ** 2 + (ry2 - y2) ** 2
+        reproj = 0.0 if not np.isfinite(reproj) else reproj
+        loss_r = torch.as_tensor(reproj, device=dev, dtype=pred1.dtype)
+        loss = loss_h + lam * loss_r
+        print(
+            f"[iter {it+1}] loss_h={loss_h.item():.4e} loss_r={loss_r.item():.4e}"
+        )
 
-            # ---- visual debug every 200 batches ----
-            if (idx + 1) % 200 == 0:
-                Path("debug").mkdir(exist_ok=True)
-                vis = (pred1[0,0].detach().cpu().numpy()*255).astype("uint8")
-                cv2.imwrite(f"debug/ep{ep+1}_it{idx+1}.png", vis)
+        opt.zero_grad()
+        loss.backward()
+        opt.step()
 
-            # ---- live progress ----
-            print(f"epoch {ep+1}/{cfg['epochs']}  "
-                  f"iter {idx+1}/{len(dl)}  "
-                  f"loss={loss.item():.4e}", end="\r")
+        # ---- visual debug every 200 iterations ----
+        if (it + 1) % 200 == 0:
+            Path("debug").mkdir(exist_ok=True)
+            vis = (pred1[0,0].detach().cpu().numpy()*255).astype("uint8")
+            cv2.imwrite(f"debug/iter{it+1}.png", vis)
 
-        print()  # newline
-        print(f"Epoch {ep+1}/{cfg['epochs']}  loss={loss.item():.4e}  "
-              f"time={time.time()-t0:.1f}s")
+        # ---- live progress ----
+        if (it + 1) % 2 == 0:
+            print(
+                f"iter {it+1}/{total_iters} loss={loss.item():.4e}"
+            )
 
-        # ---------- checkpoint ----------
-        Path("checkpoints").mkdir(exist_ok=True)
-        torch.save(net.state_dict(), f"checkpoints/epoch{ep+1}.pt")
-        print(f"✓ saved checkpoints/epoch{ep+1}.pt")
+        # ---- checkpoint every 50 iterations ----
+        if (it + 1) % 50 == 0:
+            Path("checkpoints").mkdir(exist_ok=True)
+            torch.save(net.state_dict(), f"checkpoints/iter{it+1}.pt")
+            print(f"✓ saved checkpoints/iter{it+1}.pt  time={(time.time()-t0):.1f}s")
+            t0 = time.time()
 
     print("Training finished.")
 
@@ -141,7 +169,7 @@ if __name__ == "__main__":
         "split":  "data/train_list.txt",
         "cam1_yaml": "data/raw/cam1.yaml",
         "cam2_yaml": "data/raw/cam2.yaml",
-        "epochs": 5,
+        "iters": 10000,
         "lr":     5e-5,      # lower LR to escape plateau
         "lambda": 0.02,      # smaller reprojection weight
     }
