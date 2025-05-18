@@ -5,6 +5,10 @@ Create cam1.yaml / cam2.yaml from the calibration numbers.
 
 import numpy as np, yaml, pathlib
 
+from scripts.logging_utils import setup_logger
+
+logger = setup_logger(__name__)
+
 OUT_DIR = pathlib.Path("data/raw")
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -40,4 +44,4 @@ def dump_yaml(P, path):
 dump_yaml(make_P(K1,R1,t1), OUT_DIR/"cam1.yaml")
 dump_yaml(make_P(K2,R2,t2), OUT_DIR/"cam2.yaml")
 
-print("✔  Wrote data/raw/cam1.yaml  and  data/raw/cam2.yaml")
+logger.info("\u2713  Wrote data/raw/cam1.yaml  and  data/raw/cam2.yaml")
