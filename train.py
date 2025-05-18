@@ -22,8 +22,8 @@ from scripts.logging_utils import setup_logger
 
 from models.unet      import UNet
 from scripts.dataset  import XRayBeadDataset
-from scripts.heatmaps import generate_heatmap
-from scripts.geometry import triangulate, reproject
+from scripts.heatmaps import generate_heatmap, softargmax_2d
+from scripts.geometry import triangulate, reproject, triangulate_torch, reproject_torch
 
 
 logger = setup_logger(__name__)
@@ -137,21 +137,22 @@ def train(cfg, smoke=False):
         )
         loss_h = mse(pred1, gt1) + mse(pred2, gt2)
 
-        x1, y1 = peak_xy(pred1[0,0])
-        x2, y2 = peak_xy(pred2[0,0])
-        X, Y, Z = triangulate(x1, y1, P1, x2, y2, P2)
+        x1, y1 = softargmax_2d(pred1)
+        x2, y2 = softargmax_2d(pred2)
+        x1 = x1[0]; y1 = y1[0]
+        x2 = x2[0]; y2 = y2[0]
+        XYZ = triangulate_torch(x1, y1, P1, x2, y2, P2)
+        X, Y, Z = XYZ
         logger.debug(
             "[iter %d] triangulated point: (%.2f, %.2f, %.2f)",
             it + 1,
-            X,
-            Y,
-            Z,
+            X.item(),
+            Y.item(),
+            Z.item(),
         )
-        rx1, ry1 = reproject((X, Y, Z), P1)
-        rx2, ry2 = reproject((X, Y, Z), P2)
-        reproj = (rx1 - x1) ** 2 + (ry1 - y1) ** 2 + (rx2 - x2) ** 2 + (ry2 - y2) ** 2
-        reproj = 0.0 if not np.isfinite(reproj) else reproj
-        loss_r = torch.as_tensor(reproj, device=dev, dtype=pred1.dtype)
+        rx1, ry1 = reproject_torch(XYZ, P1)
+        rx2, ry2 = reproject_torch(XYZ, P2)
+        loss_r = (rx1 - x1) ** 2 + (ry1 - y1) ** 2 + (rx2 - x2) ** 2 + (ry2 - y2) ** 2
         loss = loss_h + lam * loss_r
         logger.debug(
             "[iter %d] loss_h=%.4e loss_r=%.4e",
