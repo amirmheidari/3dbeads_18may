@@ -30,3 +30,16 @@ def generate_heatmap(keypoints, H, W, sigma=2):
         )
 
     return torch.from_numpy(hm).unsqueeze(0).unsqueeze(0)   # (1,1,H,W)
+
+
+def softargmax_2d(hm: torch.Tensor):
+    """Soft-argmax for a batch of heatmaps."""
+    B, C, H, W = hm.shape
+    probs = torch.softmax(hm.view(B, C, -1), dim=-1).view(B, C, H, W)
+    xs = torch.linspace(0, W - 1, W, device=hm.device)
+    ys = torch.linspace(0, H - 1, H, device=hm.device)
+    xs = xs.view(1, 1, 1, W)
+    ys = ys.view(1, 1, H, 1)
+    x = (probs * xs).sum(dim=(2, 3))
+    y = (probs * ys).sum(dim=(2, 3))
+    return x.squeeze(1), y.squeeze(1)

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import numpy as np
+import torch
 
 
 def _reshape_P(P):
@@ -47,3 +48,34 @@ def reproject(XYZ, P):
     if np.isclose(uvw[2], 0):
         return (np.nan, np.nan)
     return (uvw[0] / uvw[2], uvw[1] / uvw[2])
+
+
+def triangulate_torch(u1, v1, P1, u2, v2, P2, eps=1e-9):
+    """Direct Linear Transform in PyTorch (differentiable)."""
+    dev  = u1.device if torch.is_tensor(u1) else torch.device("cpu")
+    dtype = u1.dtype if torch.is_tensor(u1) else torch.float32
+    P1 = torch.as_tensor(P1, dtype=dtype, device=dev).reshape(3, 4)
+    P2 = torch.as_tensor(P2, dtype=dtype, device=dev).reshape(3, 4)
+
+    A = torch.stack([
+        u1 * P1[2] - P1[0],
+        v1 * P1[2] - P1[1],
+        u2 * P2[2] - P2[0],
+        v2 * P2[2] - P2[1],
+    ])
+
+    U, S, Vh = torch.linalg.svd(A)
+    Xh = Vh[-1]
+    Xh = Xh / (Xh[3] + eps)
+    return Xh[:3]
+
+
+def reproject_torch(XYZ, P):
+    """Project a 3D point using torch ops."""
+    XYZ = torch.as_tensor(XYZ)
+    dev  = XYZ.device
+    dtype = XYZ.dtype
+    P = torch.as_tensor(P, dtype=dtype, device=dev).reshape(3, 4)
+    XYZ1 = torch.cat([XYZ, XYZ.new_ones(1)])
+    uvw = P @ XYZ1
+    return uvw[0] / uvw[2], uvw[1] / uvw[2]
