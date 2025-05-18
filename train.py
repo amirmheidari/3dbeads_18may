@@ -67,7 +67,9 @@ def train(cfg, smoke=False):
                              cfg["cam2_yaml"],
                              root=cfg["root"])
 
-    dl = DataLoader(ds, batch_size=1, shuffle=True)
+    # do not stack batch elements so that lists remain untouched
+    dl = DataLoader(ds, batch_size=1, shuffle=True,
+                    collate_fn=lambda b: b[0])
 
     # ---------------- model / optimiser ---------------------------------
     net = UNet().to(dev)
@@ -81,8 +83,9 @@ def train(cfg, smoke=False):
     for it in range(total_iters):
         smp = next(dli)
 
-        img1 = smp["image1"].to(dev)
-        img2 = smp["image2"].to(dev)
+        # batch has been flattened by collate_fn; add batch dim
+        img1 = smp["image1"].unsqueeze(0).to(dev)
+        img2 = smp["image2"].unsqueeze(0).to(dev)
         logger.debug(
             "[iter %d] loaded images: img1 %s, img2 %s",
             it + 1,
@@ -90,27 +93,20 @@ def train(cfg, smoke=False):
             tuple(img2.shape),
         )
 
-        kp1_list = smp["kp1"]
-        kp2_list = smp["kp2"]
+        kp1 = smp["kp1"]
+        kp2 = smp["kp2"]
         logger.debug(
             "[iter %d] kp counts: cam1=%d cam2=%d",
             it + 1,
-            len(kp1_list[0]) if kp1_list else 0,
-            len(kp2_list[0]) if kp2_list else 0,
+            len(kp1),
+            len(kp2),
         )
 
-        if (
-            not kp1_list
-            or not kp2_list
-            or len(kp1_list[0]) == 0
-            or len(kp2_list[0]) == 0
-        ):
+        if len(kp1) == 0 or len(kp2) == 0:
             continue
 
-        kp1 = kp1_list[0]
-        kp2 = kp2_list[0]
-        P1 = smp["P1"][0]
-        P2 = smp["P2"][0]
+        P1 = smp["P1"]
+        P2 = smp["P2"]
 
         H, W = img1.shape[-2:]
         gt1 = generate_heatmap(kp1, H, W).to(dev)
