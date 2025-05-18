@@ -23,7 +23,7 @@ from scripts.logging_utils import setup_logger
 from models.unet      import UNet
 from scripts.dataset  import XRayBeadDataset
 from scripts.heatmaps import generate_heatmap, softargmax_2d
-from scripts.geometry import triangulate, reproject, triangulate_torch, reproject_torch
+from scripts.geometry import triangulate_torch, reproject_torch
 
 
 logger = setup_logger(__name__)
@@ -33,13 +33,6 @@ def choose_device():
     if torch.backends.mps.is_available(): return torch.device("mps")
     if torch.cuda.is_available():         return torch.device("cuda")
     return torch.device("cpu")
-
-
-def peak_xy(hm):
-    idx = torch.argmax(hm).item()
-    H, W = hm.shape[-2:]
-    y, x = divmod(idx, W)
-    return x, y
 
 
 # ---------------------------------------------------------------- training
