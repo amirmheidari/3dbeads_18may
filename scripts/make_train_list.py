@@ -11,6 +11,10 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from scripts.logging_utils import setup_logger
+
+logger = setup_logger(__name__)
+
 # -------- USER paths --------------------------------------------------------
 CSV_PATH    = Path("circ1.csv")      # or circ2.csv
 CAM1_DIR    = Path("/Users/aheidari/Desktop/james_ai_training_15_may/subjec7R_no_motec_for_new_ai/CIRC/Subject7R_NoMotec_CIRC1_16709")
@@ -44,7 +48,7 @@ beads = sorted(
     for col in df.columns
     if (m := re.match(r"(.+)_cam1_X$", col))
 )
-print("Beads found:", beads)
+logger.info("Beads found: %s", beads)
 
 with open(LIST_OUT, "w") as list_f:
     for frame_idx, row in df.iterrows():
@@ -74,4 +78,4 @@ with open(LIST_OUT, "w") as list_f:
 
         list_f.write(f"raw/{img1.name},raw/{img2.name},labels/{txt1.name},labels/{txt2.name}\n")
 
-print("✓  train_list.txt and label TXT files written in data/")
+logger.info("\u2713  train_list.txt and label TXT files written in data/")

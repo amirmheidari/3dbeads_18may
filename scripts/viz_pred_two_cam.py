@@ -11,6 +11,10 @@ Writes 4 PNGs to ./debug/
 import sys, cv2, numpy as np, torch
 from pathlib import Path
 
+from scripts.logging_utils import setup_logger
+
+logger = setup_logger(__name__)
+
 sys.path.append(str(Path(__file__).resolve().parent.parent))   # project root
 
 from models.unet      import UNet
@@ -52,7 +56,7 @@ dev  = "mps" if torch.backends.mps.is_available() else "cpu"
 
 # -------- model ---------------------------------------------------
 net = UNet(); net.load_state_dict(torch.load(ckpt, map_location=dev))
-net.to(dev).eval(); print("✓ loaded", ckpt)
+net.to(dev).eval(); logger.info("\u2713 loaded %s", ckpt)
 
 # -------- sample --------------------------------------------------
 ds  = XRayBeadDataset("data/train_list.txt", "data/raw/cam1.yaml", "data/raw/cam2.yaml")
@@ -81,4 +85,4 @@ cv2.imwrite(debug / "cam1_heat.png",
             cv2.applyColorMap((h1 * 255).byte().numpy(), cv2.COLORMAP_JET))
 cv2.imwrite(debug / "cam2_heat.png",
             cv2.applyColorMap((h2 * 255).byte().numpy(), cv2.COLORMAP_JET))
-print("✓ wrote debug/cam1_raw.png cam2_raw.png cam1_heat.png cam2_heat.png")
+logger.info("\u2713 wrote debug/cam1_raw.png cam2_raw.png cam1_heat.png cam2_heat.png")

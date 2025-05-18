@@ -4,6 +4,10 @@ import numpy as np
 from pathlib import Path
 from torch.utils.data import Dataset
 
+from scripts.logging_utils import setup_logger
+
+logger = setup_logger(__name__)
+
 
 class XRayBeadDataset(Dataset):
     """
@@ -22,6 +26,10 @@ class XRayBeadDataset(Dataset):
         self.P2        = self._load_P(cam2_yaml)
         self.transform = transform
 
+        logger.info(
+            "Loaded %d image pairs from %s", len(self.pairs), list_file
+        )
+
     @staticmethod
     def _load_P(path):
         with open(path, "r", encoding="utf-8") as f:
@@ -36,11 +44,13 @@ class XRayBeadDataset(Dataset):
 
     def __getitem__(self, idx):
         img1_fp, img2_fp, kp1_fp, kp2_fp = self.pairs[idx]
+        logger.debug("Loading sample %d: %s %s", idx, img1_fp, img2_fp)
 
         # ----- images --------------------------------------------------
         img1 = cv2.imread(str(self.root / img1_fp), cv2.IMREAD_GRAYSCALE)
         img2 = cv2.imread(str(self.root / img2_fp), cv2.IMREAD_GRAYSCALE)
         if img1 is None or img2 is None:
+            logger.error("Missing %s or %s", img1_fp, img2_fp)
             raise FileNotFoundError(f"Missing {img1_fp} or {img2_fp}")
 
         img1 = torch.from_numpy(img1.astype("float32") / 255).unsqueeze(0)
@@ -66,6 +76,7 @@ class XRayBeadDataset(Dataset):
 
         kp1 = read_txt(self.root / kp1_fp)
         kp2 = read_txt(self.root / kp2_fp)
+        logger.debug("Sample %d keypoints: cam1=%d cam2=%d", idx, len(kp1), len(kp2))
 
         return {
             "image1": img1,

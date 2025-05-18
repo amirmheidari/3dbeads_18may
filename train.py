@@ -18,11 +18,15 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 from itertools import cycle
 
+from scripts.logging_utils import setup_logger
+
 from models.unet      import UNet
 from scripts.dataset  import XRayBeadDataset
 from scripts.heatmaps import generate_heatmap
 from scripts.geometry import triangulate, reproject
 
+
+logger = setup_logger(__name__)
 
 # ---------------------------------------------------------------- helpers
 def choose_device():
@@ -41,7 +45,7 @@ def peak_xy(hm):
 # ---------------------------------------------------------------- training
 def train(cfg, smoke=False):
     dev = choose_device()
-    print("Device:", dev)
+    logger.info("Device: %s", dev)
 
     # ---------------- dataset --------------------------------------------
     if smoke:
@@ -86,12 +90,20 @@ def train(cfg, smoke=False):
 
         img1 = smp["image1"].to(dev)
         img2 = smp["image2"].to(dev)
-        print(f"[iter {it+1}] loaded images: img1 {tuple(img1.shape)}, img2 {tuple(img2.shape)}")
+        logger.debug(
+            "[iter %d] loaded images: img1 %s, img2 %s",
+            it + 1,
+            tuple(img1.shape),
+            tuple(img2.shape),
+        )
 
         kp1_list = smp["kp1"]
         kp2_list = smp["kp2"]
-        print(
-            f"[iter {it+1}] kp counts: cam1={len(kp1_list[0]) if kp1_list else 0} cam2={len(kp2_list[0]) if kp2_list else 0}"
+        logger.debug(
+            "[iter %d] kp counts: cam1=%d cam2=%d",
+            it + 1,
+            len(kp1_list[0]) if kp1_list else 0,
+            len(kp2_list[0]) if kp2_list else 0,
         )
 
         if (
@@ -110,25 +122,42 @@ def train(cfg, smoke=False):
         H, W = img1.shape[-2:]
         gt1 = generate_heatmap(kp1, H, W).to(dev)
         gt2 = generate_heatmap(kp2, H, W).to(dev)
-        print(f"[iter {it+1}] gt1 max={gt1.max().item():.3f} gt2 max={gt2.max().item():.3f}")
+        logger.debug(
+            "[iter %d] gt1 max=%.3f gt2 max=%.3f",
+            it + 1,
+            gt1.max().item(),
+            gt2.max().item(),
+        )
         pred1 = net(img1);  pred2 = net(img2)
-        print(
-            f"[iter {it+1}] pred1 min={pred1.min().item():.3f} max={pred1.max().item():.3f}"
+        logger.debug(
+            "[iter %d] pred1 min=%.3f max=%.3f",
+            it + 1,
+            pred1.min().item(),
+            pred1.max().item(),
         )
         loss_h = mse(pred1, gt1) + mse(pred2, gt2)
 
         x1, y1 = peak_xy(pred1[0,0])
         x2, y2 = peak_xy(pred2[0,0])
         X, Y, Z = triangulate(x1, y1, P1, x2, y2, P2)
-        print(f"[iter {it+1}] triangulated point: ({X:.2f}, {Y:.2f}, {Z:.2f})")
+        logger.debug(
+            "[iter %d] triangulated point: (%.2f, %.2f, %.2f)",
+            it + 1,
+            X,
+            Y,
+            Z,
+        )
         rx1, ry1 = reproject((X, Y, Z), P1)
         rx2, ry2 = reproject((X, Y, Z), P2)
         reproj = (rx1 - x1) ** 2 + (ry1 - y1) ** 2 + (rx2 - x2) ** 2 + (ry2 - y2) ** 2
         reproj = 0.0 if not np.isfinite(reproj) else reproj
         loss_r = torch.as_tensor(reproj, device=dev, dtype=pred1.dtype)
         loss = loss_h + lam * loss_r
-        print(
-            f"[iter {it+1}] loss_h={loss_h.item():.4e} loss_r={loss_r.item():.4e}"
+        logger.debug(
+            "[iter %d] loss_h=%.4e loss_r=%.4e",
+            it + 1,
+            loss_h.item(),
+            loss_r.item(),
         )
 
         opt.zero_grad()
@@ -143,18 +172,25 @@ def train(cfg, smoke=False):
 
         # ---- live progress ----
         if (it + 1) % 2 == 0:
-            print(
-                f"iter {it+1}/{total_iters} loss={loss.item():.4e}"
+            logger.info(
+                "iter %d/%d loss=%.4e",
+                it + 1,
+                total_iters,
+                loss.item(),
             )
 
         # ---- checkpoint every 50 iterations ----
         if (it + 1) % 50 == 0:
             Path("checkpoints").mkdir(exist_ok=True)
             torch.save(net.state_dict(), f"checkpoints/iter{it+1}.pt")
-            print(f"✓ saved checkpoints/iter{it+1}.pt  time={(time.time()-t0):.1f}s")
+            logger.info(
+                "\u2713 saved checkpoints/iter%d.pt  time=%.1fs",
+                it + 1,
+                time.time() - t0,
+            )
             t0 = time.time()
 
-    print("Training finished.")
+    logger.info("Training finished.")
 
 
 # ---------------------------------------------------------------- CLI
