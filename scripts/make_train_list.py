@@ -4,10 +4,14 @@ Build data/raw/, data/labels/, data/train_list.txt from:
   * circ1.csv  (columns ..._cam1_X, ..._cam1_Y, ..._cam2_X, ..._cam2_Y)
   * Subject…_16709/*.jpg  (camera-1)
   * Subject…_16710/*.jpg  (camera-2)
+
+Usage:
+    python scripts/make_train_list.py --cam1 DIR1 --cam2 DIR2
 """
 
 import csv, re, shutil
 from pathlib import Path
+import argparse
 import numpy as np
 import pandas as pd
 
@@ -15,10 +19,16 @@ from scripts.logging_utils import setup_logger
 
 logger = setup_logger(__name__)
 
+parser = argparse.ArgumentParser(description="Create train_list.txt and labels")
+parser.add_argument("--cam1", type=Path, required=True, help="Directory of camera-1 JPG files")
+parser.add_argument("--cam2", type=Path, required=True, help="Directory of camera-2 JPG files")
+args = parser.parse_args()
+
 # -------- USER paths --------------------------------------------------------
 CSV_PATH    = Path("circ1.csv")      # or circ2.csv
-CAM1_DIR    = Path("/Users/aheidari/Desktop/james_ai_training_15_may/subjec7R_no_motec_for_new_ai/CIRC/Subject7R_NoMotec_CIRC1_16709")
-CAM2_DIR    = Path("/Users/aheidari/Desktop/james_ai_training_15_may/subjec7R_no_motec_for_new_ai/CIRC/Subject7R_NoMotec_CIRC1_16710")
+# CAM1_DIR and CAM2_DIR are provided via --cam1 and --cam2
+CAM1_DIR    = args.cam1
+CAM2_DIR    = args.cam2
 OUT_RAW     = Path("data/raw")
 OUT_LBL     = Path("data/labels")
 LIST_OUT    = Path("data/train_list.txt")
