@@ -18,8 +18,11 @@ iterations.
 1. **Install dependencies** (Python 3.8+):
 
    ```bash
-   pip install torch torchvision opencv-python pyyaml numpy
+   pip install -r requirements.txt
    ```
+
+   The requirements file lists `torch`, `torchvision`,
+   `opencv-python`, `pyyaml` and `numpy`.
 
 2. **Create camera calibration files**.  Edit the matrices in
    `scripts/build_yaml_from_calibration.py` with your calibration numbers and
