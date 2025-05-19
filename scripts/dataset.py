@@ -75,8 +75,14 @@ class XRayBeadDataset(Dataset):
             return rows                    # always list[tuple]
 
         kp1 = read_txt(self.root / kp1_fp)
+        if len(kp1) == 0:
+            logger.warning("No keypoints in %s", kp1_fp)
         kp2 = read_txt(self.root / kp2_fp)
-        logger.debug("Sample %d keypoints: cam1=%d cam2=%d", idx, len(kp1), len(kp2))
+        if len(kp2) == 0:
+            logger.warning("No keypoints in %s", kp2_fp)
+        logger.debug(
+            "Sample %d keypoints: cam1=%d cam2=%d", idx, len(kp1), len(kp2)
+        )
 
         return {
             "image1": img1,
