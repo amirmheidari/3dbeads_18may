@@ -1,7 +1,13 @@
 import torch
 import math
 
-IDS = ['B0','B1','B2','B3','B4','B5']   # order must stay fixed
+# Labels for each heatmap channel. The ordering defines the mapping between
+# network outputs and bead IDs and therefore must remain consistent across
+# training and inference.
+IDS = [
+    'RAD1', 'RAD2', 'RAD3',
+    'MCIII1', 'MCIII2', 'MCIII3',
+]  # order must stay fixed
 
 
 def draw_gaussian(hm, x, y, sigma=3):
