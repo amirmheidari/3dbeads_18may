@@ -1,6 +1,9 @@
+# Cache and temporary files
 __pycache__/
 *.pyc
+
+# macOS Finder metadata
 .DS_Store
+
 checkpoints/
 debug/
-
