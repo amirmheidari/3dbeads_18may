@@ -66,3 +66,46 @@ cameras. This can help reveal issues with misalignment.
 In such cases also double‑check your camera calibration YAML files to confirm
 the extrinsic matrices are correct.
 
+## Inference
+
+Run a trained model on new images or videos using `scripts/inference.py`.
+The script expects the following arguments:
+
+1. `--checkpoint` – path to a `.pt` weight file.
+2. `--cam1_yaml` and `--cam2_yaml` – camera calibration files.
+3. Either `--pairs LIST.txt` containing comma‑separated image pairs, or
+   `--video1` and `--video2` for two synchronised videos.
+4. `--out` – destination CSV file.
+
+Example command for a list of images:
+
+```bash
+python scripts/inference.py --checkpoint checkpoints/epoch100.pt \
+       --pairs data/test_list.txt \
+       --cam1_yaml data/raw/cam1.yaml \
+       --cam2_yaml data/raw/cam2.yaml \
+       --out results.csv
+```
+
+Running on videos works in the same way:
+
+```bash
+python scripts/inference.py --checkpoint checkpoints/epoch100.pt \
+       --video1 cam1.mov --video2 cam2.mov \
+       --cam1_yaml data/raw/cam1.yaml \
+       --cam2_yaml data/raw/cam2.yaml \
+       --out results.csv
+```
+
+The output CSV contains one row per frame with the 3‑D coordinates of each bead
+in the order defined by `scripts/heatmaps_multi.py`:
+
+```python
+IDS = [
+    'RAD1', 'RAD2', 'RAD3',
+    'MCIII1', 'MCIII2', 'MCIII3',
+]  # order must stay fixed
+```
+
+XMA expects this ordering, so the generated CSV can be imported directly.
+
