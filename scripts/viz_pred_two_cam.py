@@ -19,6 +19,7 @@ sys.path.append(str(Path(__file__).resolve().parent.parent))   # project root
 
 from models.unet      import UNet
 from scripts.dataset  import XRayBeadDataset
+from scripts.heatmaps_multi import IDS
 from scripts.geometry import triangulate, reproject
 
 # -------- helpers -------------------------------------------------
@@ -55,7 +56,8 @@ ckpt = Path(sys.argv[1]); row = int(sys.argv[2]) if len(sys.argv) > 2 else 0
 dev  = "mps" if torch.backends.mps.is_available() else "cpu"
 
 # -------- model ---------------------------------------------------
-net = UNet(); net.load_state_dict(torch.load(ckpt, map_location=dev))
+net = UNet(out_channels=len(IDS))
+net.load_state_dict(torch.load(ckpt, map_location=dev))
 net.to(dev).eval(); logger.info("\u2713 loaded %s", ckpt)
 
 # -------- sample --------------------------------------------------
@@ -70,19 +72,31 @@ P1, P2 = smp["P1"], smp["P2"]
 
 # -------- forward -------------------------------------------------
 with torch.no_grad():
-    h1, h2 = net(img1)[0, 0].cpu(), net(img2)[0, 0].cpu()
-px1, py1 = map(int, peak_xy(h1));  px2, py2 = map(int, peak_xy(h2))
+    h1_all = net(img1)[0].cpu()
+    h2_all = net(img2)[0].cpu()
 
-X, Y, Z  = triangulate(px1, py1, P1, px2, py2, P2)
-rx1, ry1 = map(int, reproject((X, Y, Z), P1))
-rx2, ry2 = map(int, reproject((X, Y, Z), P2))
+coords = []
+for k in range(len(IDS)):
+    h1 = h1_all[k]
+    h2 = h2_all[k]
+    px1, py1 = map(int, peak_xy(h1))
+    px2, py2 = map(int, peak_xy(h2))
+    coords.append((px1, py1))
+    if k == 0:
+        h1_dbg, h2_dbg = h1, h2
+        px1_dbg, py1_dbg, px2_dbg, py2_dbg = px1, py1, px2, py2
+        X, Y, Z = triangulate(px1, py1, P1, px2, py2, P2)
+        rx1, ry1 = map(int, reproject((X, Y, Z), P1))
+        rx2, ry2 = map(int, reproject((X, Y, Z), P2))
 
 # -------- save PNGs ----------------------------------------------
 debug = Path("debug"); debug.mkdir(exist_ok=True)
-cv2.imwrite(debug / "cam1_raw.png",  draw(smp["image1"][0], kp1, (px1, py1), (rx1, ry1)))
-cv2.imwrite(debug / "cam2_raw.png",  draw(smp["image2"][0], kp2, (px2, py2), (rx2, ry2)))
+cv2.imwrite(debug / "cam1_raw.png",  draw(smp["image1"][0], kp1, (px1_dbg, py1_dbg), (rx1, ry1)))
+cv2.imwrite(debug / "cam2_raw.png",  draw(smp["image2"][0], kp2, (px2_dbg, py2_dbg), (rx2, ry2)))
 cv2.imwrite(debug / "cam1_heat.png",
-            cv2.applyColorMap((h1 * 255).byte().numpy(), cv2.COLORMAP_JET))
+            cv2.applyColorMap((h1_dbg * 255).byte().numpy(), cv2.COLORMAP_JET))
 cv2.imwrite(debug / "cam2_heat.png",
-            cv2.applyColorMap((h2 * 255).byte().numpy(), cv2.COLORMAP_JET))
+            cv2.applyColorMap((h2_dbg * 255).byte().numpy(), cv2.COLORMAP_JET))
 logger.info("\u2713 wrote debug/cam1_raw.png cam2_raw.png cam1_heat.png cam2_heat.png")
+
+print(dict(zip(IDS, coords)))

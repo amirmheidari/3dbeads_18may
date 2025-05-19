@@ -18,7 +18,7 @@ class _Block(nn.Module):
 
 
 class UNet(nn.Module):
-    def __init__(self, in_ch=1, out_ch=1, base=32):
+    def __init__(self, in_ch=1, out_channels=6, base=32):
         super().__init__()
         # Encoder
         self.e1 = _Block(in_ch, base)
@@ -37,7 +37,7 @@ class UNet(nn.Module):
         self.up1 = nn.ConvTranspose2d(base * 2, base, 2, 2)
         self.d1  = _Block(base * 2, base)
 
-        self.out_conv = nn.Conv2d(base, out_ch, 1)
+        self.out_conv = nn.Conv2d(base, out_channels, 1)
 
     def forward(self, x):
         e1 = self.e1(x)
