@@ -22,7 +22,10 @@ from scripts.logging_utils import setup_logger
 
 from models.unet      import UNet
 from scripts.dataset  import XRayBeadDataset
-from scripts.heatmaps import generate_heatmap, softargmax_2d
+from scripts.heatmaps_multi import generate_multichannel_heatmaps, IDS
+from scripts.heatmaps import softargmax_2d
+
+K = len(IDS)
 from scripts.geometry import triangulate_torch, reproject_torch
 
 
@@ -72,7 +75,7 @@ def train(cfg, smoke=False):
                     collate_fn=lambda b: b[0])
 
     # ---------------- model / optimiser ---------------------------------
-    net = UNet().to(dev)
+    net = UNet(out_channels=K).to(dev)
     opt = optim.Adam(net.parameters(), lr=cfg["lr"])
     mse = nn.MSELoss();  lam = cfg["lambda"]
 
@@ -109,15 +112,16 @@ def train(cfg, smoke=False):
         P2 = smp["P2"]
 
         H, W = img1.shape[-2:]
-        gt1 = generate_heatmap(kp1, H, W).to(dev)
-        gt2 = generate_heatmap(kp2, H, W).to(dev)
+        gt1 = generate_multichannel_heatmaps(kp1, H, W).to(dev)
+        gt2 = generate_multichannel_heatmaps(kp2, H, W).to(dev)
         logger.debug(
             "[iter %d] gt1 max=%.3f gt2 max=%.3f",
             it + 1,
             gt1.max().item(),
             gt2.max().item(),
         )
-        pred1 = net(img1);  pred2 = net(img2)
+        pred1 = net(img1)[0]
+        pred2 = net(img2)[0]
         logger.debug(
             "[iter %d] pred1 min=%.3f max=%.3f",
             it + 1,
@@ -126,22 +130,27 @@ def train(cfg, smoke=False):
         )
         loss_h = mse(pred1, gt1) + mse(pred2, gt2)
 
-        x1, y1 = softargmax_2d(pred1)
-        x2, y2 = softargmax_2d(pred2)
-        x1 = x1[0]; y1 = y1[0]
-        x2 = x2[0]; y2 = y2[0]
-        XYZ = triangulate_torch(x1, y1, P1, x2, y2, P2)
-        X, Y, Z = XYZ
-        logger.debug(
-            "[iter %d] triangulated point: (%.2f, %.2f, %.2f)",
-            it + 1,
-            X.item(),
-            Y.item(),
-            Z.item(),
-        )
-        rx1, ry1 = reproject_torch(XYZ, P1)
-        rx2, ry2 = reproject_torch(XYZ, P2)
-        loss_r = (rx1 - x1) ** 2 + (ry1 - y1) ** 2 + (rx2 - x2) ** 2 + (ry2 - y2) ** 2
+        x1, y1 = softargmax_2d(pred1.unsqueeze(0))
+        x2, y2 = softargmax_2d(pred2.unsqueeze(0))
+        x1 = x1[0]
+        y1 = y1[0]
+        x2 = x2[0]
+        y2 = y2[0]
+        loss_r = 0
+        for k in range(K):
+            XYZ = triangulate_torch(x1[k], y1[k], P1, x2[k], y2[k], P2)
+            X, Y, Z = XYZ
+            logger.debug(
+                "[iter %d] bead %d XYZ=(%.2f, %.2f, %.2f)",
+                it + 1,
+                k,
+                X.item(),
+                Y.item(),
+                Z.item(),
+            )
+            rx1, ry1 = reproject_torch(XYZ, P1)
+            rx2, ry2 = reproject_torch(XYZ, P2)
+            loss_r = loss_r + (rx1 - x1[k]) ** 2 + (ry1 - y1[k]) ** 2 + (rx2 - x2[k]) ** 2 + (ry2 - y2[k]) ** 2
         loss = loss_h + lam * loss_r
         logger.debug(
             "[iter %d] loss_h=%.4e loss_r=%.4e",
@@ -159,11 +168,11 @@ def train(cfg, smoke=False):
             Path("debug").mkdir(exist_ok=True)
 
             heat1 = cv2.applyColorMap(
-                (pred1[0, 0].detach() * 255).byte().cpu().numpy(),
+                (pred1[0].detach() * 255).byte().cpu().numpy(),
                 cv2.COLORMAP_JET,
             )
             heat2 = cv2.applyColorMap(
-                (pred2[0, 0].detach() * 255).byte().cpu().numpy(),
+                (pred2[0].detach() * 255).byte().cpu().numpy(),
                 cv2.COLORMAP_JET,
             )
 
