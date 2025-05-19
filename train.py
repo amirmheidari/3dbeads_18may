@@ -157,8 +157,23 @@ def train(cfg, smoke=False):
         # ---- visual debug every 200 iterations ----
         if (it + 1) % 200 == 0:
             Path("debug").mkdir(exist_ok=True)
-            vis = (pred1[0,0].detach().cpu().numpy()*255).astype("uint8")
-            cv2.imwrite(f"debug/iter{it+1}.png", vis)
+
+            heat1 = cv2.applyColorMap(
+                (pred1[0, 0].detach() * 255).byte().cpu().numpy(),
+                cv2.COLORMAP_JET,
+            )
+            heat2 = cv2.applyColorMap(
+                (pred2[0, 0].detach() * 255).byte().cpu().numpy(),
+                cv2.COLORMAP_JET,
+            )
+
+            for x, y, _ in kp1:
+                cv2.circle(heat1, (int(x), int(y)), 4, (0, 255, 0), -1)
+            for x, y, _ in kp2:
+                cv2.circle(heat2, (int(x), int(y)), 4, (0, 255, 0), -1)
+
+            cv2.imwrite(f"debug/iter{it+1}_cam1.png", heat1)
+            cv2.imwrite(f"debug/iter{it+1}_cam2.png", heat2)
 
         # ---- live progress ----
         if (it + 1) % 2 == 0:
