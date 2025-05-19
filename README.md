@@ -50,3 +50,16 @@ lr: 5e-5
 lambda: 0.02
 ```
 
+## Troubleshooting
+
+The heatmap generation utilities create peaks with a maximum value of `1.0`. If
+debug output mentions `gt1 max=1.0` this simply reflects that behaviour and is
+expected.
+
+When predictions appear clustered on one side of the images, visualise the
+output using `scripts/viz_pred_two_cam.py` to inspect the points from both
+cameras. This can help reveal issues with misalignment.
+
+In such cases also double‑check your camera calibration YAML files to confirm
+the extrinsic matrices are correct.
+
