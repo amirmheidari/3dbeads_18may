@@ -72,18 +72,20 @@ Run a trained model on new images or videos using `scripts/inference.py`.
 The script expects the following arguments:
 
 1. `--checkpoint` – path to a `.pt` weight file.
-2. `--cam1_yaml` and `--cam2_yaml` – camera calibration files.
+2. `--cam1_yaml` and `--cam2_yaml` – camera calibration files. These default
+   to `data/raw/cam1.yaml` and `data/raw/cam2.yaml` if not given.
 3. Either `--pairs LIST.txt` containing comma‑separated image pairs, or
    `--video1` and `--video2` for two synchronised videos.
 4. `--out` – destination CSV file.
+
+Use `--cam1_yaml` and `--cam2_yaml` to provide custom calibration files if they
+are stored elsewhere.
 
 Example command for a list of images:
 
 ```bash
 python scripts/inference.py --checkpoint checkpoints/epoch100.pt \
        --pairs data/test_list.txt \
-       --cam1_yaml data/raw/cam1.yaml \
-       --cam2_yaml data/raw/cam2.yaml \
        --out results.csv
 ```
 
@@ -92,8 +94,6 @@ Running on videos works in the same way:
 ```bash
 python scripts/inference.py --checkpoint checkpoints/epoch100.pt \
        --video1 cam1.mov --video2 cam2.mov \
-       --cam1_yaml data/raw/cam1.yaml \
-       --cam2_yaml data/raw/cam2.yaml \
        --out results.csv
 ```
 
