@@ -56,7 +56,7 @@ ckpt = Path(sys.argv[1]); row = int(sys.argv[2]) if len(sys.argv) > 2 else 0
 dev  = "mps" if torch.backends.mps.is_available() else "cpu"
 
 # -------- model ---------------------------------------------------
-net = UNet(out_channels=len(IDS))
+net = UNet(in_ch=3, out_channels=len(IDS))
 net.load_state_dict(torch.load(ckpt, map_location=dev))
 net.to(dev).eval(); logger.info("\u2713 loaded %s", ckpt)
 
@@ -66,6 +66,11 @@ smp = ds[row]
 
 img1 = smp["image1"].unsqueeze(0).to(dev)
 img2 = smp["image2"].unsqueeze(0).to(dev)
+B, _, H, W = img1.shape
+xx = torch.linspace(0, 1, W, device=dev).view(1, 1, 1, W).expand(B, 1, H, W)
+yy = torch.linspace(0, 1, H, device=dev).view(1, 1, H, 1).expand(B, 1, H, W)
+img1 = torch.cat([img1, xx, yy], 1)
+img2 = torch.cat([img2, xx, yy], 1)
 kp1  = as_list(smp["kp1"])
 kp2  = as_list(smp["kp2"])
 P1, P2 = smp["P1"], smp["P2"]

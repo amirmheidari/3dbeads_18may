@@ -39,6 +39,7 @@ iterations.
    ```bash
    python train.py              # uses config.yaml if present
    python train.py --smoke      # tiny synthetic sanity check
+   python train.py --config cfg.yaml --lr 3e-4 --lambda 0.02 --focal-gamma 2
    ```
 
 Example `config.yaml` snippet:
@@ -49,9 +50,19 @@ split: data/train_list.txt
 cam1_yaml: data/raw/cam1.yaml
 cam2_yaml: data/raw/cam2.yaml
 iters: 10000
-lr: 5e-5
+lr: 1e-4
 lambda: 0.02
+focal_gamma: 2.0
+focal_alpha: 0.25
 ```
+
+TensorBoard logs are written to `runs/`. Launch with:
+
+```bash
+tensorboard --logdir runs
+```
+
+![TensorBoard screenshot](docs/tb_placeholder.png)
 
 ## Troubleshooting
 
