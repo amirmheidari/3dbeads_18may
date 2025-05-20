@@ -56,7 +56,7 @@ ckpt = Path(sys.argv[1]); row = int(sys.argv[2]) if len(sys.argv) > 2 else 0
 dev  = "mps" if torch.backends.mps.is_available() else "cpu"
 
 # -------- model ---------------------------------------------------
-net = UNet(out_channels=len(IDS))
+net = UNet(in_ch=3, out_channels=len(IDS))
 net.load_state_dict(torch.load(ckpt, map_location=dev))
 net.to(dev).eval(); logger.info("\u2713 loaded %s", ckpt)
 

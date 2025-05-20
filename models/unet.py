@@ -18,7 +18,7 @@ class _Block(nn.Module):
 
 
 class UNet(nn.Module):
-    def __init__(self, in_ch=1, out_channels=6, base=32):
+    def __init__(self, in_ch: int = 3, out_channels: int = 6, base: int = 32):
         super().__init__()
         # Encoder
         self.e1 = _Block(in_ch, base)
