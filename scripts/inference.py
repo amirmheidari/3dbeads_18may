@@ -111,8 +111,19 @@ def run_on_videos(v1_path: Path, v2_path: Path, net, dev, P1, P2):
 def main():
     ap = argparse.ArgumentParser(description="3-D bead inference")
     ap.add_argument("--checkpoint", required=True, type=Path)
-    ap.add_argument("--cam1_yaml", required=True, type=Path)
-    ap.add_argument("--cam2_yaml", required=True, type=Path)
+    default_base = Path(__file__).resolve().parent.parent / "data" / "raw"
+    ap.add_argument(
+        "--cam1_yaml",
+        type=Path,
+        default=default_base / "cam1.yaml",
+        help="Camera 1 calibration YAML (default: data/raw/cam1.yaml)",
+    )
+    ap.add_argument(
+        "--cam2_yaml",
+        type=Path,
+        default=default_base / "cam2.yaml",
+        help="Camera 2 calibration YAML (default: data/raw/cam2.yaml)",
+    )
     ap.add_argument("--pairs", type=Path, help="Text file with image pairs")
     ap.add_argument("--video1", type=Path, help="Camera 1 video")
     ap.add_argument("--video2", type=Path, help="Camera 2 video")
