@@ -4,7 +4,7 @@
 # =============================================================
 """
 usage:
-    python scripts/viz_pred_two_cam.py  checkpoints/epochN.pt  [row]
+    python scripts/viz_pred_two_cam.py  checkpoints/iterN.pt  [row]
 Writes 4 PNGs to ./debug/
 """
 
