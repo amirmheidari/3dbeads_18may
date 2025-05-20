@@ -48,6 +48,11 @@ def run_on_images(pairs, net, dev, P1, P2):
             raise FileNotFoundError(f"Missing {img1_fp} or {img2_fp}")
         img1_t = torch.from_numpy(img1.astype("float32") / 255).unsqueeze(0).unsqueeze(0)
         img2_t = torch.from_numpy(img2.astype("float32") / 255).unsqueeze(0).unsqueeze(0)
+        _, _, H, W = img1_t.shape
+        xcoord = torch.linspace(0, 1, W).view(1, 1, W).expand(1, H, W)
+        ycoord = torch.linspace(0, 1, H).view(1, H, 1).expand(1, H, W)
+        img1_t = torch.cat([img1_t, xcoord, ycoord], 1)
+        img2_t = torch.cat([img2_t, xcoord, ycoord], 1)
         with torch.no_grad():
             hm1 = net(img1_t.to(dev))[0]
             hm2 = net(img2_t.to(dev))[0]
@@ -85,6 +90,11 @@ def run_on_videos(v1_path: Path, v2_path: Path, net, dev, P1, P2):
             frame2 = cv2.cvtColor(frame2, cv2.COLOR_BGR2GRAY)
         img1_t = torch.from_numpy(frame1.astype("float32") / 255).unsqueeze(0).unsqueeze(0)
         img2_t = torch.from_numpy(frame2.astype("float32") / 255).unsqueeze(0).unsqueeze(0)
+        _, _, H, W = img1_t.shape
+        xcoord = torch.linspace(0, 1, W).view(1, 1, W).expand(1, H, W)
+        ycoord = torch.linspace(0, 1, H).view(1, H, 1).expand(1, H, W)
+        img1_t = torch.cat([img1_t, xcoord, ycoord], 1)
+        img2_t = torch.cat([img2_t, xcoord, ycoord], 1)
         with torch.no_grad():
             hm1 = net(img1_t.to(dev))[0]
             hm2 = net(img2_t.to(dev))[0]
@@ -140,7 +150,7 @@ def main():
     dev = choose_device()
     logger.info("Device: %s", dev)
 
-    net = UNet(out_channels=len(IDS))
+    net = UNet(in_ch=3, out_channels=len(IDS))
     net.load_state_dict(torch.load(args.checkpoint, map_location=dev))
     net.to(dev).eval()
     logger.info("\u2713 loaded %s", args.checkpoint)
