@@ -104,6 +104,24 @@ def train(cfg, smoke=False):
             len(kp1),
             len(kp2),
         )
+        gt1_dict = {b: (x, y) for x, y, b in kp1}
+        gt2_dict = {b: (x, y) for x, y, b in kp2}
+        for x, y, bead in kp1:
+            logger.debug(
+                "[iter %d] cam1 gt %-6s (%.1f, %.1f)",
+                it + 1,
+                bead,
+                x,
+                y,
+            )
+        for x, y, bead in kp2:
+            logger.debug(
+                "[iter %d] cam2 gt %-6s (%.1f, %.1f)",
+                it + 1,
+                bead,
+                x,
+                y,
+            )
 
         if len(kp1) == 0 or len(kp2) == 0:
             continue
@@ -136,20 +154,43 @@ def train(cfg, smoke=False):
         y1 = y1[0]
         x2 = x2[0]
         y2 = y2[0]
+        for k, bead in enumerate(IDS):
+            g1 = gt1_dict.get(bead)
+            g2 = gt2_dict.get(bead)
+            logger.debug(
+                "[iter %d] bead %-6s pred cam1=(%.1f, %.1f) gt1=%s cam2=(%.1f, %.1f) gt2=%s",
+                it + 1,
+                bead,
+                x1[k].item(),
+                y1[k].item(),
+                g1,
+                x2[k].item(),
+                y2[k].item(),
+                g2,
+            )
         loss_r = 0
-        for k in range(K):
+        for k, bead in enumerate(IDS):
             XYZ = triangulate_torch(x1[k], y1[k], P1, x2[k], y2[k], P2)
             X, Y, Z = XYZ
             logger.debug(
-                "[iter %d] bead %d XYZ=(%.2f, %.2f, %.2f)",
+                "[iter %d] bead %-6s XYZ=(%.2f, %.2f, %.2f)",
                 it + 1,
-                k,
+                bead,
                 X.item(),
                 Y.item(),
                 Z.item(),
             )
             rx1, ry1 = reproject_torch(XYZ, P1)
             rx2, ry2 = reproject_torch(XYZ, P2)
+            logger.debug(
+                "[iter %d] bead %-6s reproj1=(%.1f, %.1f) reproj2=(%.1f, %.1f)",
+                it + 1,
+                bead,
+                rx1.item(),
+                ry1.item(),
+                rx2.item(),
+                ry2.item(),
+            )
             loss_r = loss_r + (rx1 - x1[k]) ** 2 + (ry1 - y1[k]) ** 2 + (rx2 - x2[k]) ** 2 + (ry2 - y2[k]) ** 2
         loss = loss_h + lam * loss_r
         logger.debug(
